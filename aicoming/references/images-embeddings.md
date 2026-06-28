@@ -145,6 +145,71 @@ print(transcript.text)
 
 ---
 
+## Image Editing — `/v1/images/edits`
+
+OpenAI-compatible image edit. Provide the source image plus a prompt.
+
+```python
+with open("photo.png", "rb") as img:
+    edited = client.images.edit(
+        model="gpt-image-2-1k",          # verify via /v1/models
+        image=img,
+        prompt="make the sky a dramatic sunset",
+    )
+print(edited.data[0].url)
+```
+
+---
+
+## Video Generation (async) — `/v1/videos/generations` + `/v1/videos/generations/{id}`
+
+Two-step: submit a task → poll by id. Model e.g. `bytedance/seedance-2.0/text-to-video` (verify via `/v1/models`).
+
+```python
+import os, time, requests
+
+API_KEY = os.environ["AICOMING_API_KEY"]
+H = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
+
+# 1. Submit
+sub = requests.post("https://api.aicoming.top/v1/videos/generations",
+                    json={"model": "bytedance/seedance-2.0/text-to-video",
+                          "prompt": "a rocket launching, cinematic"},
+                    headers=H, timeout=60)
+sub.raise_for_status()
+task_id = sub.json().get("id") or sub.json().get("data", {}).get("id")
+
+# 2. Poll
+while True:
+    time.sleep(5)
+    r = requests.get(f"https://api.aicoming.top/v1/videos/generations/{task_id}",
+                     headers=H, timeout=30).json()
+    status = r.get("status") or r.get("data", {}).get("status")
+    if status in ("completed", "succeeded", "failed"):
+        print(r)
+        break
+```
+
+> Submit/response field names follow the gateway's video schema — inspect the first live response to confirm before hard-coding.
+
+---
+
+## Responses API — `/v1/responses`
+
+OpenAI's newer Responses API is also relayed. Use the OpenAI SDK's `client.responses.create(...)` with `base_url="https://api.aicoming.top/v1"`.
+
+---
+
+## Wallet Balance via API key — `/v1/balance`
+
+Unlike the JWT console endpoints, balance is also exposed under the relay with just the API key:
+
+```bash
+curl https://api.aicoming.top/v1/balance -H "Authorization: Bearer $AICOMING_API_KEY"
+```
+
+---
+
 ## Midjourney (async) — `/mj/submit/imagine` + `/mj/task/{taskId}/fetch`
 
 Midjourney is a two-step async flow: submit a task → poll for the result.

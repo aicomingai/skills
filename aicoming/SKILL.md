@@ -58,11 +58,16 @@ Content-Type: application/json
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET`  | `/v1/models` | **Models this API key can call** (OpenAI-standard, key required) |
+| `GET`  | `/v1/models` | OpenAI-standard model list (key required for access; not subscription-filtered) |
+| `GET`  | `/v1/balance` | Wallet balance via API key (no JWT needed) |
 | `POST` | `/v1/chat/completions` | OpenAI chat completions (streaming + non-streaming) |
 | `POST` | `/v1/completions` | Legacy text completions |
+| `POST` | `/v1/responses` | OpenAI Responses API |
 | `POST` | `/v1/embeddings` | Text embeddings / vectorization |
 | `POST` | `/v1/images/generations` | Text-to-image |
+| `POST` | `/v1/images/edits` | Image editing |
+| `POST` | `/v1/videos/generations` | Text/image-to-video (async — returns a task) |
+| `GET`  | `/v1/videos/generations/{id}` | Poll video generation task |
 | `POST` | `/v1/rerank` | Document reranking |
 | `POST` | `/v1/audio/transcriptions` | Speech-to-text |
 | `POST` | `/v1/audio/translations` | Audio translation |
@@ -70,6 +75,8 @@ Content-Type: application/json
 | `POST` | `/v1beta/models/{model}:{action}` | Google Gemini format (generateContent / streamGenerateContent) |
 | `POST` | `/mj/submit/imagine` | Midjourney async task submit |
 | `GET`  | `/mj/task/{taskId}/fetch` | Midjourney task result poll |
+
+> The whole `/v1/*` surface is also mirrored under `/v1/v1/*` as an alias, for clients that wrongly append `/v1` to a base URL that already ends in `/v1`.
 
 ### Console Endpoints
 
@@ -103,26 +110,22 @@ AIComing accepts requests in three formats and routes them to the right upstream
 
 | Endpoint | Auth | Returns |
 |----------|------|---------|
-| `GET https://api.aicoming.top/v1/models` | **API key required** | **The models THIS key can actually call** (OpenAI-standard format). This is the one that matters for making requests. |
-| `GET https://api.aicoming.top/api/v1/models` | none | The full public marketplace catalog (everything on the platform, for browsing/comparison). Not all of these are necessarily callable by a given key. |
+| `GET https://api.aicoming.top/v1/models` | **API key required (for access)** | The set of models the gateway can route to, in **OpenAI-standard format** (`{"object":"list","data":[{"id":"gpt-5.5","object":"model","owned_by":"aicoming"}]}`). This is what OpenAI-compatible clients (CC Switch, Codex, etc.) read. Use the `id` field as the `"model"` value. **Note:** this list is the platform/station-wide routable set — it is NOT filtered by the key's subscriptions. |
+| `GET https://api.aicoming.top/api/v1/models` | none | The rich public marketplace catalog (pricing, providers, vendors, latency). Use the `name` field as the model id (`id` here is a numeric DB key). Good for browsing/comparison. |
 
 ### The workflow
 
-1. **If the user has set `AICOMING_API_KEY`** → call the authenticated endpoint first to see what that key can use:
-   ```bash
-   curl https://api.aicoming.top/v1/models -H "Authorization: Bearer $AICOMING_API_KEY"
-   ```
-   Pick a model ID from this response. If the model the user wants isn't here, their key/plan may not include it — tell them, don't guess.
-
-2. **If no key is available yet** (e.g. just exploring what exists) → use the public catalog `GET /api/v1/models` (no auth) to show what the platform offers, but remind the user the final usable set is key-dependent.
+1. **To get valid model IDs for a request** → call `GET /v1/models` with the key and use an `id` from the response. (Or use the public catalog's `name` field.)
+2. **To browse/compare** (pricing, vendors) → use the public `GET /api/v1/models` (no auth).
+3. **Whether a specific call succeeds** is enforced at request time, not in the list: a model may be listed but still rejected if the account hasn't subscribed to a provider that offers it, or the wallet is empty. See "Using a Model Your Key Doesn't Have Yet" below.
 
 The tables in this skill are **illustrative only**. They go stale. Treat them as hints about what *kind* of models exist, never as a source of truth for an actual request.
 
 ## Using a Model Your Key Doesn't Have Yet
 
-AIComing is a marketplace: models are offered by **providers (merchants)**. A key can only call models from providers the account has **subscribed** to. "Model not in my key" means "I haven't subscribed to a provider that offers it" — the fix is to subscribe, not to get a new key.
+AIComing is a marketplace: models are offered by **providers (merchants)**. The `/v1/models` list shows what the gateway can route to, but actually **calling** a model can be rejected if the account hasn't **subscribed** to a provider that offers it (or the wallet is empty). The fix is to subscribe, not to get a new key.
 
-If a model the user wants isn't in `GET /v1/models`, guide them through this (JWT auth — login required, see `references/account.md`):
+If a chat/image call is rejected with a subscription/permission error (or the user wants a model that isn't being served yet), guide them through this (JWT auth — login required, see `references/account.md`):
 
 1. **Find which provider offers the model.** In the public catalog `GET /api/v1/models`, each model object lists `provider_id`, `provider_name`, and `available_providers`.
 2. **Subscribe to that provider:**

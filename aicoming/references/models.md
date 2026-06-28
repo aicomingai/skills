@@ -1,15 +1,19 @@
 # Model Discovery — Query the Live Model List
 
-> **The single most important rule of this skill:** never hard-code or guess a model ID. Always fetch the live list first. Models on AIComing change constantly, **and the usable set depends on the API key.**
+> **The single most important rule of this skill:** never hard-code or guess a model ID. Always fetch the live list first. Models on AIComing change constantly.
 
 ## Two endpoints — pick the right one
 
-| Endpoint | Auth | Returns |
-|----------|------|---------|
-| `GET /v1/models` | **API key** | Models THIS key can actually call. **Prefer this** when a key is available. |
-| `GET /api/v1/models` | none | Full public catalog (browsing only; not all are callable by a given key). |
+| Endpoint | Auth | Returns | Model id field |
+|----------|------|---------|----------------|
+| `GET /v1/models` | API key (for access) | OpenAI-standard list of models the gateway can route to. NOT filtered by the key's subscriptions. | `id` |
+| `GET /api/v1/models` | none | Rich public catalog (pricing, providers, vendors, latency). | `name` (the `id` here is a numeric DB key) |
 
-## Preferred: Models This Key Can Call (key required)
+> Neither list is per-key. Whether a call actually succeeds is enforced at request time (subscription + balance) — see `account.md`.
+
+## OpenAI-standard list (key required for access)
+
+This is what OpenAI-compatible clients (CC Switch, Codex…) read. Returns `{"object":"list","data":[{"id":"gpt-5.5","object":"model","owned_by":"aicoming"}]}`.
 
 ```bash
 curl https://api.aicoming.top/v1/models \
@@ -19,25 +23,24 @@ curl https://api.aicoming.top/v1/models \
 ```python
 import os, requests
 
-def my_models() -> list:
+def gateway_models() -> list:
     resp = requests.get(
         "https://api.aicoming.top/v1/models",
         headers={"Authorization": f"Bearer {os.environ['AICOMING_API_KEY']}"},
         timeout=30,
     )
     resp.raise_for_status()
-    data = resp.json()
-    return data.get("data", data)   # OpenAI-standard: {"object":"list","data":[{"id": "...", ...}]}
+    return [m["id"] for m in resp.json()["data"]]
 
-for m in my_models():
-    print(m.get("id", m))
+for mid in gateway_models():
+    print(mid)
 ```
 
-> In the OpenAI-standard response, the usable model identifier is the `id` field of each item — pass it as `"model"` in your requests.
+> Pass the `id` value as `"model"` in your requests.
 
-## Public Catalog — All Platform Models (no auth)
+## Public Catalog — Rich Marketplace Data (no auth)
 
-Use this only for browsing/comparison when no key is set, or to show vendors/pricing.
+Use this to browse, compare pricing, or show vendors/providers. Here the model id you pass in requests is the **`name`** field.
 
 ```
 GET https://api.aicoming.top/api/v1/models
