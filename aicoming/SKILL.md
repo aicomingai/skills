@@ -163,7 +163,7 @@ Read the corresponding reference file when you need to write specific integratio
 ### Timeouts (important for images/video)
 
 - **Chat**: non-streaming `120s`, streaming `300s`.
-- **Image generation** (synchronous): set an explicit long timeout, **180s**. Never leave a raw HTTP call with no timeout.
+- **Image generation** (synchronous): set an explicit long timeout, **600s (10 min)**. Never leave a raw HTTP call with no timeout.
 - **Video generation**: always **async** — submit returns a task id, then poll `GET /v1/videos/generations/{id}`. Use a bounded poll loop (e.g. 120 × 5s = 10 min cap), never a single long-held request and never an unbounded `while True`.
 - **Midjourney**: same async submit-then-poll pattern with a bounded loop.
 

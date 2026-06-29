@@ -12,7 +12,7 @@ All OpenAI-compatible, under `https://api.aicoming.top/v1`. Use the OpenAI SDK w
 
 > **Response format (verified):** `gpt-image-*` models return the image as **base64** in `data[0].b64_json`, NOT a URL. Decode and save it yourself. (Some other image models may return `data[0].url` instead — handle both.)
 >
-> **Timeout:** image generation is synchronous and can take 10–60s. Set an explicit long timeout (180s) — the default on a raw `requests` call is "wait forever", and a too-short one truncates slow renders.
+> **Timeout:** image generation is synchronous and some models/sizes are slow. Set an explicit long timeout — **600s (10 min)**. Never leave a raw `requests` call with no timeout, and don't set it too short or slow renders get truncated.
 
 ### Python (OpenAI SDK)
 
@@ -20,10 +20,10 @@ All OpenAI-compatible, under `https://api.aicoming.top/v1`. Use the OpenAI SDK w
 import os, base64
 from openai import OpenAI
 
-# Raise the SDK timeout for slow image renders (default is 600s; set explicitly to be safe)
+# Raise the SDK timeout for slow image renders — 600s (10 min)
 client = OpenAI(api_key=os.environ["AICOMING_API_KEY"],
                 base_url="https://api.aicoming.top/v1",
-                timeout=180)
+                timeout=600)
 
 resp = client.images.generate(
     model="gpt-image-2-1k",                   # use an id from GET /v1/models
@@ -43,7 +43,7 @@ else:
 ### cURL
 
 ```bash
-curl --max-time 180 https://api.aicoming.top/v1/images/generations \
+curl --max-time 600 https://api.aicoming.top/v1/images/generations \
   -H "Authorization: Bearer $AICOMING_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
