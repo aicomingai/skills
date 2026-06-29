@@ -8,7 +8,9 @@ OpenAI-compatible chat completions via `POST https://api.aicoming.top/v1/chat/co
 - [Node.js / TypeScript (OpenAI SDK)](#nodejs--typescript-openai-sdk)
 - [cURL](#curl)
 
-> Before writing code, fetch `GET https://api.aicoming.top/api/v1/models` and use a real model ID. The IDs below are illustrative.
+> Before writing code, fetch `GET https://api.aicoming.top/v1/models` and use a real model id. The IDs below are illustrative.
+>
+> **Reasoning models (verified):** some models (e.g. `deepseek-v4-flash`) emit thinking into `choices[0].message.reasoning_content` and put only the final answer in `content`. With a small `max_tokens` the budget can be eaten entirely by reasoning, leaving `content` empty and `finish_reason="length"`. Give reasoning models a generous `max_tokens` (hundreds+) and read `content` for the answer.
 
 ---
 

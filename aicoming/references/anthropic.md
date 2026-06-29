@@ -2,7 +2,7 @@
 
 AIComing accepts native Anthropic Messages requests at `POST https://api.aicoming.top/v1/messages`. Use this when your code already targets the Anthropic SDK/format — just change the base URL.
 
-> Authentication uses the AIComing API key. AIComing accepts it via the standard `Authorization: Bearer` header. Fetch `GET https://api.aicoming.top/api/v1/models` for valid Claude model IDs.
+> **Auth (verified):** both `Authorization: Bearer $AICOMING_API_KEY` AND Anthropic's native `x-api-key: $AICOMING_API_KEY` header work. So the official Anthropic SDK (which sends `x-api-key`) works as-is — just point `base_url` at AIComing. Fetch `GET https://api.aicoming.top/v1/models` for valid model ids.
 
 ---
 

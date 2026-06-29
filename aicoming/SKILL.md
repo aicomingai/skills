@@ -1,6 +1,6 @@
 ---
 name: aicoming
-description: "AIComing unified AI API gateway integration skill — call OpenAI, Claude, Gemini, DeepSeek and 100+ models through ONE OpenAI-compatible endpoint with smart routing and automatic failover. Use this skill when the user needs to integrate AI model calls into their project via AIComming / aicoming.top, configure AICOMING_API_KEY, call chat completions (streaming or not), generate images, create embeddings, rerank documents, transcribe audio, use the Anthropic Messages format, use the Google Gemini format, submit Midjourney tasks, query the available model list, manage API keys, or check wallet balance and usage. Applicable scenarios include: building an AI app, switching from OpenAI/OpenRouter to a unified gateway, multi-model routing, failover between providers, OpenAI SDK base_url replacement, text-to-image, embeddings, RAG retrieval reranking, speech-to-text. Even if the user doesn't explicitly mention AIComing, this skill should be considered whenever unified AI API gateway integration is involved."
+description: "AIComing unified AI API gateway integration skill — call OpenAI, Claude, Gemini, DeepSeek and more models through ONE OpenAI-compatible endpoint with smart routing and automatic failover. Use this skill when the user needs to integrate AI model calls into their project via AIComming / aicoming.top, configure AICOMING_API_KEY, call chat completions (streaming or not), generate images, create embeddings, rerank documents, transcribe audio, use the Anthropic Messages format, use the Google Gemini format, submit Midjourney tasks, query the available model list, manage API keys, or check wallet balance and usage. Applicable scenarios include: building an AI app, switching from OpenAI/OpenRouter to a unified gateway, multi-model routing, failover between providers, OpenAI SDK base_url replacement, text-to-image, embeddings, RAG retrieval reranking, speech-to-text. Even if the user doesn't explicitly mention AIComing, this skill should be considered whenever unified AI API gateway integration is involved."
 ---
 
 # AIComing API Integration Guide
@@ -72,7 +72,7 @@ Content-Type: application/json
 | `POST` | `/v1/audio/transcriptions` | Speech-to-text |
 | `POST` | `/v1/audio/translations` | Audio translation |
 | `POST` | `/v1/messages` | Anthropic Messages format (Claude) |
-| `POST` | `/v1beta/models/{model}:{action}` | Google Gemini format (generateContent / streamGenerateContent) |
+| `POST` | `/v1beta/models/{model}:streamGenerateContent` | Google Gemini format (**streaming only** — non-stream is rejected) |
 | `POST` | `/mj/submit/imagine` | Midjourney async task submit |
 | `GET`  | `/mj/task/{taskId}/fetch` | Midjourney task result poll |
 
@@ -98,9 +98,9 @@ Content-Type: application/json
 
 AIComing accepts requests in three formats and routes them to the right upstream model. Use whichever matches your existing code:
 
-- **OpenAI** — `/v1/chat/completions`, `/v1/completions`, `/v1/embeddings`, `/v1/images/generations`. Drop-in compatible with the OpenAI SDK (just change `base_url`).
-- **Anthropic** — `/v1/messages`. Drop-in compatible with the Anthropic SDK (change `base_url`).
-- **Google Gemini** — `/v1beta/models/{model}:generateContent`. Compatible with the Gemini REST format.
+- **OpenAI** — `/v1/chat/completions`, `/v1/completions`, `/v1/embeddings`, `/v1/images/generations`. Drop-in compatible with the OpenAI SDK (just change `base_url`). Most robust path; supports streaming and non-streaming.
+- **Anthropic** — `/v1/messages`. Drop-in with the Anthropic SDK (change `base_url`). Accepts both `Authorization: Bearer` and `x-api-key`.
+- **Google Gemini** — `/v1beta/models/{model}:streamGenerateContent`. ⚠️ **Streaming only** — non-streaming `:generateContent` is rejected ("set stream=true"). For non-streaming, use the OpenAI format instead.
 
 ## CRITICAL: Never Fabricate — Always Fetch the Model List
 

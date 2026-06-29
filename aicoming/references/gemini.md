@@ -2,17 +2,19 @@
 
 AIComing accepts native Google Gemini requests at `POST https://api.aicoming.top/v1beta/models/{model}:{action}`. Use this when your code targets the Gemini REST format.
 
-Actions:
-- `:generateContent` — single response
-- `:streamGenerateContent` — streaming response
+> ⚠️ **Verified gotcha:** the upstream node only accepts **streaming** for this format. Use **`:streamGenerateContent`**. A non-streaming `:generateContent` call is rejected with:
+> ```json
+> {"error":{"message":"this NewAPI node only accepts streaming requests; set stream=true","type":"invalid_request"}}
+> ```
+> If you want a simple non-streaming call, use the OpenAI-compatible `/v1/chat/completions` endpoint instead (see `chat.md`) — it works with any model on the gateway, including Gemini-family ones.
 
-> Fetch `GET https://api.aicoming.top/api/v1/models` for valid Gemini model IDs. The IDs below are illustrative.
+> There may be no `gemini-*` model in the list at a given time, but the Gemini *format adapter* works against whatever models the gateway serves. Fetch `GET https://api.aicoming.top/v1/models` for valid model ids (use the `id` field).
 
 ---
 
 ## Authentication
 
-AIComing uses your API key via the standard `Authorization: Bearer` header (instead of Google's `?key=` query param):
+Use your AIComing API key via the standard `Authorization: Bearer` header (instead of Google's `?key=` query param):
 
 ```
 Authorization: Bearer $AICOMING_API_KEY
@@ -21,21 +23,10 @@ Content-Type: application/json
 
 ---
 
-## cURL
+## cURL (streaming — the supported path)
 
 ```bash
-# Non-streaming
-curl "https://api.aicoming.top/v1beta/models/gemini-3.1-pro-preview:generateContent" \
-  -H "Authorization: Bearer $AICOMING_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "contents": [
-      {"role": "user", "parts": [{"text": "Explain black holes simply."}]}
-    ]
-  }'
-
-# Streaming
-curl -N "https://api.aicoming.top/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent" \
+curl -N "https://api.aicoming.top/v1beta/models/<model-id>:streamGenerateContent" \
   -H "Authorization: Bearer $AICOMING_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -43,40 +34,51 @@ curl -N "https://api.aicoming.top/v1beta/models/gemini-3.1-pro-preview:streamGen
   }'
 ```
 
+Each SSE line is `data: { ...Gemini chunk... }`:
+```
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Hi"}]},"finishReason":null,"index":0}],"usageMetadata":{...}}
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":"!"}]},...}]}
+```
+
 ---
 
-## Python (raw requests)
+## Python (raw requests, streaming)
 
 ```python
-import os
-import requests
+import os, json, requests
 
 API_KEY = os.environ["AICOMING_API_KEY"]
 BASE = "https://api.aicoming.top/v1beta/models"
-HEADERS = {
-    "Authorization": f"Bearer {API_KEY}",
-    "Content-Type": "application/json",
-}
+HEADERS = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
 
-def generate(model: str, prompt: str) -> str:
-    url = f"{BASE}/{model}:generateContent"
+def generate_stream(model: str, prompt: str) -> str:
+    url = f"{BASE}/{model}:streamGenerateContent"   # must be the streaming action
     body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
-    resp = requests.post(url, json=body, headers=HEADERS, timeout=120)
-    resp.raise_for_status()
-    data = resp.json()
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    out = []
+    with requests.post(url, json=body, headers=HEADERS, stream=True, timeout=300) as resp:
+        resp.raise_for_status()
+        for line in resp.iter_lines(decode_unicode=True):
+            if not line or not line.startswith("data: "):
+                continue
+            chunk = json.loads(line[len("data: "):])
+            for cand in chunk.get("candidates", []):
+                for part in cand.get("content", {}).get("parts", []):
+                    if part.get("text"):
+                        out.append(part["text"])
+    return "".join(out)
 
 
 if __name__ == "__main__":
-    print(generate("gemini-3.1-pro-preview", "Hello, Gemini!"))
+    # use an id from GET /v1/models
+    print(generate_stream("gpt-5.4-mini", "Hello, Gemini format!"))
 ```
 
 ---
 
 ## Python (google-genai SDK)
 
-If you use Google's official SDK, point it at AIComing's base URL via the client options:
+The official SDK uses streaming via `generate_content_stream`. Point it at AIComing's base URL:
 
 ```python
 import os
@@ -87,32 +89,27 @@ client = genai.Client(
     api_key=os.environ["AICOMING_API_KEY"],
     http_options=HttpOptions(base_url="https://api.aicoming.top"),
 )
-resp = client.models.generate_content(
-    model="gemini-3.1-pro-preview",
-    contents="Hello, Gemini!",
-)
-print(resp.text)
+for chunk in client.models.generate_content_stream(
+    model="gpt-5.4-mini",          # use an id from GET /v1/models
+    contents="Hello!",
+):
+    print(chunk.text, end="", flush=True)
+print()
 ```
 
 ---
 
-## Response Shape (Gemini format)
+## Streaming chunk shape (Gemini format)
 
 ```json
 {
   "candidates": [{
-    "content": {
-      "role": "model",
-      "parts": [{"text": "Hello! How can I help?"}]
-    },
-    "finishReason": "STOP"
+    "content": {"role": "model", "parts": [{"text": "Hello!"}]},
+    "finishReason": "STOP",
+    "index": 0
   }],
-  "usageMetadata": {
-    "promptTokenCount": 5,
-    "candidatesTokenCount": 8,
-    "totalTokenCount": 13
-  }
+  "usageMetadata": {"promptTokenCount": 5, "candidatesTokenCount": 8, "totalTokenCount": 13}
 }
 ```
 
-> Tip: you can also call Gemini models through the OpenAI-compatible `/v1/chat/completions` endpoint (see `chat.md`) if you prefer one code path for all models.
+> Simplest cross-model path: call everything through the OpenAI-compatible `/v1/chat/completions` (see `chat.md`) — one code path, supports non-streaming, works for Gemini-family models too.
