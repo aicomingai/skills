@@ -72,4 +72,4 @@ Once installed, talk to your assistant in natural language:
 
 ## License
 
-MIT (or your preference)
+[MIT](./LICENSE) © AIComing

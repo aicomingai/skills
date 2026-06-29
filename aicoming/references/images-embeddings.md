@@ -160,7 +160,15 @@ print(transcript.text)
 
 ## Image Editing — `/v1/images/edits`
 
-OpenAI-compatible image edit. Provide the source image plus a prompt.
+OpenAI-compatible image edit (verified). Multipart form with fields `model`, `image` (the source file), and `prompt`. Returns `data[0].b64_json` like generation. Set a long timeout (600s).
+
+```bash
+curl --max-time 600 https://api.aicoming.top/v1/images/edits \
+  -H "Authorization: Bearer $AICOMING_API_KEY" \
+  -F "model=gpt-image-2-1k" \
+  -F "image=@photo.png" \
+  -F "prompt=make the sky a dramatic sunset"
+```
 
 ```python
 import base64
