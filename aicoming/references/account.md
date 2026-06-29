@@ -96,9 +96,13 @@ requests.post(f"{BASE}/wallet/topup", headers=AUTH,
 
 ---
 
-## Enabling a Model Your Key Can't Call Yet (Provider Subscriptions, JWT auth)
+## Enabling a Model Your Key Can't Call Yet
 
-Models are provided by **providers (merchants)**. A key can only call models from subscribed providers. To unlock a model that's missing from `GET /v1/models`:
+**Verified mechanism: access is group-based.** Calling a model your key's group doesn't include returns `403 {"error":{"message":"无权访问 ... 分组","type":"new_api_error"}}`. The fix is to enable that model's group for the key/account in the console (`https://aicoming.top/console`), or have the operator grant it — not to subscribe per-provider. Retrying won't help.
+
+The marketplace also exposes **provider-subscription** endpoints (below) used by the model-market UI. Whether subscribing changes relay group access was **not verified** — treat these as marketplace/UX features, and prefer the console group settings for actual call access.
+
+To explore the provider/subscription side (JWT auth):
 
 ```python
 # 1. Find the provider for the model (from the public catalog)

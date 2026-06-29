@@ -123,23 +123,19 @@ The tables in this skill are **illustrative only**. They go stale. Treat them as
 
 ## Using a Model Your Key Doesn't Have Yet
 
-AIComing is a marketplace: models are offered by **providers (merchants)**. The `/v1/models` list shows what the gateway can route to, but actually **calling** a model can be rejected if the account hasn't **subscribed** to a provider that offers it (or the wallet is empty). The fix is to subscribe, not to get a new key.
+**Access is group-based (verified).** Every model belongs to a permission **group** (e.g. an "图像视频" / image-video group). An API key can only call models in the groups its key/account is entitled to. A model can appear in `GET /v1/models` (the gateway-wide list) yet still be uncallable by your key.
 
-If a chat/image call is rejected with a subscription/permission error (or the user wants a model that isn't being served yet), guide them through this (JWT auth — login required, see `references/account.md`):
+The signature of this is a **403** on the call, not a missing-model error:
 
-1. **Find which provider offers the model.** In the public catalog `GET /api/v1/models`, each model object lists `provider_id`, `provider_name`, and `available_providers`.
-2. **Subscribe to that provider:**
-   ```
-   POST /api/v1/providers/{provider_id}/subscribe        # DELETE to unsubscribe
-   ```
-3. **If the model is gated behind a package**, purchase it:
-   ```
-   POST /api/v1/wallet/subscriptions/purchase   { "package_id": ... }
-   ```
-4. **Ensure the wallet has balance:** `GET /api/v1/wallet/balance` → top up via `POST /api/v1/wallet/topup` if needed.
-5. **Done.** The model now appears in `GET /v1/models` and is callable normally. Smart routing picks the best subscribed provider and fails over automatically.
+```json
+{"error":{"message":"无权访问 图像视频 分组","type":"new_api_error"}}
+```
 
-> A 402 / "provider not subscribed" style error on a chat request usually means step 2 is missing.
+This means: the request body was fine; the key's group simply doesn't include that model's category. To fix it, the model's group must be enabled for the key/account — do this in the **console** (account/key group or model-access settings at `https://aicoming.top/console`). If the option isn't self-serve for that group, the user must contact the AIComing operator to grant access. Also make sure the wallet has balance (`GET /v1/balance`).
+
+> Do NOT tell the user to "get a new key" or to retry — a 403 group error won't change by retrying. The fix is a group/permission grant, then make sure the model id you send is exactly the `id` from `GET /v1/models`.
+>
+> (Note: the platform also has provider-subscription endpoints under `POST /api/v1/providers/{id}/subscribe` for the marketplace UI; whether subscribing affects relay group access was not verified — prefer the console group/permission settings above.)
 
 ## Code Templates
 
@@ -160,8 +156,16 @@ Read the corresponding reference file when you need to write specific integratio
 |-------------|---------|-----------------|
 | 401 | Invalid or expired API Key | Check `AICOMING_API_KEY` |
 | 402 | Insufficient balance | Top up at [Wallet](https://aicoming.top/console/wallet) |
+| 403 `无权访问 ... 分组` (`new_api_error`) | Key's group lacks access to that model category | Enable the model's group for the key/account in the console — see "Using a Model Your Key Doesn't Have Yet". Do NOT retry. |
 | 429 | Rate limited (100 req/min per key) | Wait and retry with exponential backoff |
 | 5xx | Upstream/server error | Smart routing usually retries automatically; otherwise retry |
+
+### Timeouts (important for images/video)
+
+- **Chat**: non-streaming `120s`, streaming `300s`.
+- **Image generation** (synchronous): set an explicit long timeout, **180s**. Never leave a raw HTTP call with no timeout.
+- **Video generation**: always **async** — submit returns a task id, then poll `GET /v1/videos/generations/{id}`. Use a bounded poll loop (e.g. 120 × 5s = 10 min cap), never a single long-held request and never an unbounded `while True`.
+- **Midjourney**: same async submit-then-poll pattern with a bounded loop.
 
 ### Retry Strategy
 

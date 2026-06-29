@@ -10,27 +10,40 @@ All OpenAI-compatible, under `https://api.aicoming.top/v1`. Use the OpenAI SDK w
 
 ## Text-to-Image — `/v1/images/generations`
 
+> **Response format (verified):** `gpt-image-*` models return the image as **base64** in `data[0].b64_json`, NOT a URL. Decode and save it yourself. (Some other image models may return `data[0].url` instead — handle both.)
+>
+> **Timeout:** image generation is synchronous and can take 10–60s. Set an explicit long timeout (180s) — the default on a raw `requests` call is "wait forever", and a too-short one truncates slow renders.
+
 ### Python (OpenAI SDK)
 
 ```python
-import os
+import os, base64
 from openai import OpenAI
 
-client = OpenAI(api_key=os.environ["AICOMING_API_KEY"], base_url="https://api.aicoming.top/v1")
+# Raise the SDK timeout for slow image renders (default is 600s; set explicitly to be safe)
+client = OpenAI(api_key=os.environ["AICOMING_API_KEY"],
+                base_url="https://api.aicoming.top/v1",
+                timeout=180)
 
 resp = client.images.generate(
-    model="gpt-image-2-1k",                   # verify via /api/v1/models
+    model="gpt-image-2-1k",                   # use an id from GET /v1/models
     prompt="A serene Japanese garden with cherry blossoms, soft light",
     size="1024x1024",
     n=1,
 )
-print(resp.data[0].url)
+item = resp.data[0]
+if getattr(item, "b64_json", None):
+    with open("out.png", "wb") as f:
+        f.write(base64.b64decode(item.b64_json))
+    print("saved out.png")
+else:
+    print(item.url)
 ```
 
 ### cURL
 
 ```bash
-curl https://api.aicoming.top/v1/images/generations \
+curl --max-time 180 https://api.aicoming.top/v1/images/generations \
   -H "Authorization: Bearer $AICOMING_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -41,9 +54,9 @@ curl https://api.aicoming.top/v1/images/generations \
   }'
 ```
 
-Response:
+Response (verified for `gpt-image-*` — base64, not URL):
 ```json
-{ "created": 1700000000, "data": [{ "url": "https://.../image.png" }] }
+{ "created": 1782704322, "data": [{ "b64_json": "iVBORw0KGgoAAAANSUhEUg..." }] }
 ```
 
 ---
@@ -150,20 +163,27 @@ print(transcript.text)
 OpenAI-compatible image edit. Provide the source image plus a prompt.
 
 ```python
+import base64
+
 with open("photo.png", "rb") as img:
     edited = client.images.edit(
-        model="gpt-image-2-1k",          # verify via /v1/models
+        model="gpt-image-2-1k",          # use an id from GET /v1/models
         image=img,
         prompt="make the sky a dramatic sunset",
     )
-print(edited.data[0].url)
+item = edited.data[0]
+# Like generation, gpt-image-* returns base64 (b64_json); other models may return url
+data = base64.b64decode(item.b64_json) if getattr(item, "b64_json", None) else None
+print("got b64 image" if data else item.url)
 ```
 
 ---
 
 ## Video Generation (async) — `/v1/videos/generations` + `/v1/videos/generations/{id}`
 
-Two-step: submit a task → poll by id. Model e.g. `bytedance/seedance-2.0/text-to-video` (verify via `/v1/models`).
+Two-step: submit a task → poll by id. **Use the model `id` exactly as `GET /v1/models` returns it** — e.g. `bytedance-seedance-2.0-text-to-video` (hyphenated), NOT the slash form `bytedance/seedance-2.0/text-to-video` from the public catalog.
+
+Never hold one long-lived request open for the whole render. Submit fast, then poll with a **bounded** loop (cap total wait) so a stuck task can't loop forever.
 
 ```python
 import os, time, requests
@@ -171,16 +191,16 @@ import os, time, requests
 API_KEY = os.environ["AICOMING_API_KEY"]
 H = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
-# 1. Submit
+# 1. Submit (fast — short timeout is fine; the render happens async)
 sub = requests.post("https://api.aicoming.top/v1/videos/generations",
-                    json={"model": "bytedance/seedance-2.0/text-to-video",
+                    json={"model": "bytedance-seedance-2.0-text-to-video",
                           "prompt": "a rocket launching, cinematic"},
                     headers=H, timeout=60)
 sub.raise_for_status()
 task_id = sub.json().get("id") or sub.json().get("data", {}).get("id")
 
-# 2. Poll
-while True:
+# 2. Poll with a hard cap (e.g. 120 tries * 5s = 10 min)
+for _ in range(120):
     time.sleep(5)
     r = requests.get(f"https://api.aicoming.top/v1/videos/generations/{task_id}",
                      headers=H, timeout=30).json()
@@ -188,7 +208,11 @@ while True:
     if status in ("completed", "succeeded", "failed"):
         print(r)
         break
+else:
+    raise TimeoutError(f"video task {task_id} did not finish within 10 minutes")
 ```
+
+> **Access note (verified):** model access is **group-based**. If your key's group doesn't include the model's category you'll get `403 {"error":{"message":"无权访问 图像视频 分组","type":"new_api_error"}}` — the request body was fine; the key just lacks permission for that group. See "Using a Model Your Key Doesn't Have Yet" in `SKILL.md`.
 
 > Submit/response field names follow the gateway's video schema — inspect the first live response to confirm before hard-coding.
 
