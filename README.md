@@ -22,13 +22,13 @@ Supports Claude Code today, and adapts to other tools with a similar skill/knowl
 ### Quick install (recommended)
 
 ```bash
-npx skills add huatianwan/aicoming-skills
+npx skills add aicomingai/skills
 ```
 
 ### Shell script
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/huatianwan/aicoming-skills/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/aicomingai/skills/main/install.sh | sh
 ```
 
 ### Manual

@@ -3,7 +3,7 @@ set -e
 
 SKILL_NAME="aicoming"
 SKILL_DIR="$HOME/.claude/skills/$SKILL_NAME"
-REPO_URL="https://github.com/huatianwan/aicoming-skills"
+REPO_URL="https://github.com/aicomingai/skills"
 
 echo "Installing AIComing skill for Claude Code..."
 
