@@ -115,6 +115,42 @@ Use the `name` field as the `"model"` value. Examples live at the time of writin
 | `gpt-image-2-1k`, `gpt-image-2-2k`, `nano-banana-pro` | image | `/v1/images/generations` |
 | `bytedance/seedance-2.0/text-to-video` | video | (provider-specific) |
 
+## Per-Model Metadata — `get_model_meta(name)`
+
+There is no per-model schema endpoint (`/api/v1/models/{id}` → 404). Read the model's object from the catalog and interpret its fields to know which endpoint, which sizes, and the cost — before building the request.
+
+```python
+import requests
+
+def get_model_meta(name: str) -> dict | None:
+    """Return the full catalog object for a model (match on the `name` field)."""
+    data = requests.get("https://api.aicoming.top/api/v1/models", timeout=30).json()["data"]
+    return next((m for m in data if m.get("name") == name), None)
+
+m = get_model_meta("bytedance/seedance-2.0/text-to-video")
+if m:
+    print("type:", m["type"])                 # chat | image | video → picks the endpoint
+    print("note:", m.get("note"))             # modality/duration hints
+    print("context_length:", m.get("context_length"))
+    print("billing:", m.get("billing_type"))
+    for t in m.get("price_tiers", []):        # valid resolutions + price (video: per_second)
+        print(f"  tier {t['label']}: {t['price']} / {t['unit']}")
+    print("up?", m.get("status"), m.get("availability_24h"), m.get("available_providers"))
+```
+
+Field → decision:
+
+| Field | Decides |
+|-------|---------|
+| `type` / `category` | endpoint: `chat`→`/v1/chat/completions`, `image`→`/v1/images/generations`, `video`→`/v1/videos/generations` |
+| `price_tiers` | valid resolution/size options + price (video lists 480p/720p/1080p `per_second`) |
+| `context_length` | chat context cap |
+| `billing_type`, `*_price` | cost estimate (CNY) |
+| `note` | supported modalities, duration, sometimes the endpoint |
+| `status` / `availability_24h` / `available_providers` | is it live + who serves it |
+
+> No strict per-model param list exists. Pull sizes from `price_tiers`, read `note` for modality/limits, and start with minimal params (`model` + `prompt`/`messages`), adding only what the format or metadata justifies.
+
 ## The Verification Workflow
 
 Before sending any response or code that references a model ID:

@@ -121,6 +121,26 @@ AIComing accepts requests in three formats and routes them to the right upstream
 
 The tables in this skill are **illustrative only**. They go stale. Treat them as hints about what *kind* of models exist, never as a source of truth for an actual request.
 
+## Per-Model Capabilities & Pricing — read the catalog object before building a request
+
+There is **no per-model parameter schema endpoint** (`/api/v1/models/{id}` returns 404). The single source of per-model truth is the **catalog object** in `GET /api/v1/models` — find the entry whose `name` matches your model and read these fields before writing the request:
+
+| Field | Use it to decide |
+|-------|------------------|
+| `type` / `category` (`chat` / `image` / `video`) | **Which endpoint** to call: `chat`→`/v1/chat/completions`, `image`→`/v1/images/generations`, `video`→`/v1/videos/generations` |
+| `price_tiers` | Valid **resolution/size** options and their price. For video this lists `480p` / `720p` / `1080p` with `unit: per_second`. Empty means no tiered options. |
+| `context_length` | Max context window for chat models (`0` = not reported) |
+| `billing_type` + `image_price` / `input_price` / `output_price` / `call_price` | Billing mode and **cost estimate** (currency is CNY) |
+| `note` | Human description — often states supported modalities and limits (e.g. a video model's note: "text/image/audio input, up to 15s, native audio"). Sometimes states the endpoint. |
+| `status`, `availability_24h`, `available_providers` | Whether the model is actually up right now and who serves it |
+
+Request **parameters** themselves follow the standard format conventions (OpenAI/Anthropic/Gemini). AIComing doesn't publish a strict per-model param list, so:
+- Pull resolution/size choices from `price_tiers` (don't invent sizes).
+- Read `note` for modality/duration hints.
+- Start with **minimal params** (`model` + `prompt`/`messages`) and add only fields the format or `note`/`price_tiers` justify.
+
+See `references/models.md` for a `get_model_meta(name)` helper.
+
 ## Using a Model Your Key Doesn't Have Yet
 
 **Access is group-based (verified).** Every model belongs to a permission **group** (e.g. an "图像视频" / image-video group). An API key can only call models in the groups its key/account is entitled to. A model can appear in `GET /v1/models` (the gateway-wide list) yet still be uncallable by your key.
