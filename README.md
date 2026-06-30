@@ -15,7 +15,8 @@ Supports Claude Code today, and adapts to other tools with a similar skill/knowl
 - OpenAI SDK / Anthropic SDK compatibility guides (just change `base_url`)
 - Streaming (SSE) implementations
 - Account / API-key / wallet / usage management
-- A hard "never fabricate model IDs — always fetch `/api/v1/models`" rule
+- A hard "never fabricate model IDs — always fetch `/v1/models`" rule
+- API-key security rules + a zero-dependency `scripts/api.js` caller that auto-authenticates and masks secrets
 
 ## Install
 

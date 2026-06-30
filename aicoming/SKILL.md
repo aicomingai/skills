@@ -39,6 +39,26 @@ resp = client.chat.completions.create(
 print(resp.choices[0].message.content)
 ```
 
+## Security — Protect the API Key (read first)
+
+The `sk-` key spends real balance — treat it like a password. **Mandatory:**
+
+- **Never** print, echo, hardcode, or write a full `sk-` key into chat, code, files, logs, or command-line args. Read it only from `AICOMING_API_KEY`.
+- **Don't ask the user to paste their key into the chat** — have them `export AICOMING_API_KEY="sk-..."`. If a key was already pasted anywhere, treat it as leaked → tell them to regenerate it.
+- When a key must be shown, **mask it** (`sk-0730**********24bb3`).
+- Prefer the bundled caller `scripts/api.js` (auto-adds auth from the env var, auto-masks secrets in output) over ad-hoc `curl`.
+
+Full rules and helpers: `references/security.md`.
+
+### Bundled scripts (zero-dependency, node ≥18)
+
+```bash
+node scripts/api.js GET  /v1/models          # list gateway models (masked)
+node scripts/api.js GET  /v1/balance         # wallet balance
+node scripts/api.js POST /v1/chat/completions '{"model":"gpt-5.4-mini","messages":[{"role":"user","content":"hi"}],"max_tokens":50}'
+```
+`scripts/api.js` reads `AICOMING_API_KEY` from the env, adds `Authorization: Bearer`, and masks any `sk-` value before printing — so the key never reaches tool output.
+
 ## API Architecture
 
 AIComing exposes two API surfaces:
@@ -143,7 +163,7 @@ See `references/models.md` for a `get_model_meta(name)` helper.
 
 ## Using a Model Your Key Doesn't Have Yet
 
-**Access is group-based (verified).** Every model belongs to a permission **group** (e.g. an "图像视频" / image-video group). An API key can only call models in the groups its key/account is entitled to. A model can appear in `GET /v1/models` (the gateway-wide list) yet still be uncallable by your key.
+**Access is group-based (verified).** AIComing runs on a new-api–style backend: each upstream channel (and the models it serves) is tagged with a **group**, and a key/account is entitled to a set of groups (e.g. an "图像视频" / image-video group). An API key can only call models in groups it's entitled to. A model can appear in `GET /v1/models` (the gateway-wide list) yet still be uncallable by your key because that model's group isn't in your entitlement.
 
 The signature of this is a **403** on the call, not a missing-model error:
 
@@ -166,7 +186,8 @@ For full implementation code with streaming, polling, and error handling, read t
 - **`references/gemini.md`** — Google Gemini format (`/v1beta/models`)
 - **`references/images-embeddings.md`** — Text-to-image, embeddings, and rerank
 - **`references/account.md`** — Register / login / API key management / wallet / usage
-- **`references/models.md`** — Model list query + popular model quick reference
+- **`references/models.md`** — Model list query + per-model metadata lookup
+- **`references/security.md`** — API key handling rules + the `scripts/api.js` caller
 
 Read the corresponding reference file when you need to write specific integration code.
 
