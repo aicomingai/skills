@@ -32,6 +32,40 @@ The AIComing key (`sk-...`) is a bearer credential: anyone holding it can spend 
   node scripts/api.js GET /v1/models
   ```
 
+## Setting the key — the user must do this in their own shell
+
+A skill (or the agent) **cannot persist an environment variable for you**: a child process can't write back into the parent shell, and persisting requires touching the secret. So the user runs one of these themselves, in their own terminal:
+
+**Windows — persist (PowerShell), writes to the user environment:**
+```powershell
+setx AICOMING_API_KEY "sk-..."
+```
+> `setx` persists for **new** terminals — the current window won't see it; open a fresh one. Don't use `setx` for values >1024 chars.
+
+**Windows — current window only (not persisted):**
+```powershell
+$env:AICOMING_API_KEY = "sk-..."
+```
+
+**macOS / Linux — persist (add to shell profile):**
+```bash
+echo 'export AICOMING_API_KEY="sk-..."' >> ~/.zshrc   # or ~/.bashrc
+source ~/.zshrc
+```
+
+**macOS / Linux — current shell only:**
+```bash
+export AICOMING_API_KEY="sk-..."
+```
+
+**Per-project — a `.env` file loaded by your app** (and git-ignored):
+```
+AICOMING_API_KEY=sk-...
+```
+Load it with python-dotenv / `dotenv` / your framework's env loader. Never commit `.env`; commit only `.env.example` with a placeholder.
+
+> Do NOT have the agent run these with the real key inline — that puts the secret into AI-visible tool calls and history. The user types the value themselves; the agent only shows the command template with a `sk-...` placeholder.
+
 ## Rotation
 
 If a key is leaked (or you're unsure), rotate it: AIComing Console → API keys → regenerate, then re-export the new value. Old key stops working immediately.
